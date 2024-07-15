@@ -1,0 +1,219 @@
+```python
+import pygame
+import random
+
+# Инициализация Pygame
+pygame.init()
+
+# Параметры экрана
+screen_width = 400
+screen_height = 600
+play_width = 300
+play_height = 600
+block_size = 30
+
+# Установка экрана
+screen = pygame.display.set_mode((screen_width, screen_height))
+pygame.display.set_caption("Tetris")
+
+# Цвета
+colors = [
+    (0, 0, 0),
+    (255, 85, 85),
+    (100, 200, 115),
+    (120, 108, 245),
+    (255, 140, 50),
+    (50, 120, 52),
+    (146, 202, 73),
+    (150, 161, 218)
+]
+
+# Фигуры
+tetriminoes = [
+    [[1, 1, 1],
+     [0, 1, 0]],
+
+    [[0, 2, 2],
+     [2, 2, 0]],
+
+    [[3, 3, 0],
+     [0, 3, 3]],
+
+    [[4, 0, 0],
+     [4, 4, 4]],
+
+    [[0, 0, 5],
+     [5, 5, 5]],
+
+    [[6, 6, 6, 6]],
+
+    [[7, 7],
+     [7, 7]]
+]
+
+class Tetris:
+    def __init__(self, height, width):
+        self.height = height
+        self.width = width
+        self.board = [[0 for _ in range(width)] for _ in range(height)]
+        self.gameover = False
+        self.score = 0
+        self.level = 1
+        self.lines_cleared = 0
+        self.current_piece = self.new_piece()
+        self.next_piece = self.new_piece()
+        self.piece_x = 3
+        self.piece_y = 0
+
+    def new_piece(self):
+        return random.choice(tetriminoes)
+
+    def rotate_piece(self):
+        self.current_piece = [list(row) for row in zip(*self.current_piece[::-1])]
+
+    def valid_space(self):
+        accepted_positions = [[(j, i) for j in range(self.width) if self.board[i][j] == 0] for i in range(self.height)]
+        accepted_positions = [j for sub in accepted_positions for j in sub]
+
+        formatted = self.convert_shape_format()
+        for pos in formatted:
+            if pos not in accepted_positions:
+                if pos[1] > -1:
+                    return False
+        return True
+
+    def convert_shape_format(self):
+        positions = []
+        format = self.current_piece
+
+        for i, line in enumerate(format):
+            row = list(line)
+            for j, column in enumerate(row):
+                if column != 0:
+                    positions.append((self.piece_x + j, self.piece_y + i))
+        return positions
+
+    def clear_rows(self):
+        rows_cleared = 0
+        for i in range(self.height - 1, -1, -1):
+            if 0 not in self.board[i]:
+                del self.board[i]
+                self.board.insert(0, [0 for _ in range(self.width)])
+                rows_cleared += 1
+                self.lines_cleared += 1
+                if self.lines_cleared % 10 == 0:
+                    self.level += 1
+        self.score += rows_cleared * 10
+
+    def draw_board(self, screen):
+        for i in range(self.height):
+            for j in range(self.width):
+                pygame.draw.rect(screen, colors[self.board[i][j]],
+                                 (j * block_size, i * block_size, block_size, block_size), 0)
+
+        piece_format = self.convert_shape_format()
+        for pos in piece_format:
+            pygame.draw.rect(screen, colors[self.current_piece[0][0]], 
+                             (pos[0] * block_size, pos[1] * block_size, block_size, block_size), 0)
+
+        self.draw_grid(screen)
+
+    def draw_next_piece(self, screen):
+        piece_format = self.next_piece
+        for i, line in enumerate(piece_format):
+            for j, column in enumerate(line):
+                if column != 0:
+                    pygame.draw.rect(screen, colors[column], 
+                                     ((self.width + j + 1) * block_size, (i + 1) * block_size, block_size, block_size), 0)
+
+    def draw_text(self, screen, text, size, color, position):
+        font = pygame.font.Font(pygame.font.get_default_font(), size)
+        label = font.render(text, 1, color)
+        screen.blit(label, position)
+
+    def draw_grid(self, screen):
+        sx = 0
+        sy = 0
+        for i in range(self.height):
+            pygame.draw.line(screen, (128, 128, 128), (sx, sy + i * block_size), (sx + play_width, sy + i * block_size))
+            for j in range(self.width):
+                pygame.draw.line(screen, (128, 128, 128), (sx + j * block_size, sy), (sx + j * block_size, sy + play_height))
+
+    def freeze_piece(self):
+        for pos in self.convert_shape_format():
+            p = pos
+            self.board[p[1]][p[0]] = self.current_piece[0][0]
+        self.current_piece = self.next_piece
+        self.next_piece = self.new_piece()
+        self.piece_x = 3
+        self.piece_y = 0
+        if not self.valid_space():
+            self.gameover = True
+
+def main():
+    clock = pygame.time.Clock()
+    tetris = Tetris(20, 10)
+    fall_time = 0
+
+    while True:
+        if tetris.gameover:
+            screen.fill((0, 0, 0))
+            tetris.draw_text(screen, "Game Over", 60, (255, 0, 0), (screen_width // 2 - 100, screen_height // 2 - 30))
+            tetris.draw_text(screen, "Press R to Restart", 30, (255, 255, 255), (screen_width // 2 - 90, screen_height // 2 + 30))
+            pygame.display.update()
+
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    pygame.quit()
+                    return
+                if event.type == pygame.KEYDOWN and event.key == pygame.K_r:
+                    tetris = Tetris(20, 10)
+                    fall_time = 0
+
+        else:
+            screen.fill((0, 0, 0))
+            tetris.clear_rows()
+            tetris.draw_board(screen)
+            tetris.draw_next_piece(screen)
+            tetris.draw_text(screen, f'Score: {tetris.score}', 30, (255, 255, 255), (play_width + 10, 10))
+            tetris.draw_text(screen, f'Level: {tetris.level}', 30, (255, 255, 255), (play_width + 10, 50))
+            pygame.display.update()
+
+            fall_speed = 0.3 - (tetris.level * 0.02)
+            fall_time += clock.get_rawtime()
+            clock.tick()
+
+            if fall_time / 1000 >= fall_speed:
+                tetris.piece_y += 1
+                if not tetris.valid_space():
+                    tetris.piece_y -= 1
+                    tetris.freeze_piece()
+                fall_time = 0
+
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    pygame.quit()
+                    return
+                if event.type == pygame.KEYDOWN:
+                    if event.key == pygame.K_LEFT:
+                        tetris.piece_x -= 1
+                        if not tetris.valid_space():
+                            tetris.piece_x += 1
+                    if event.key == pygame.K_RIGHT:
+                        tetris.piece_x += 1
+                        if not tetris.valid_space():
+                            tetris.piece_x -= 1
+                    if event.key == pygame.K_DOWN:
+                        tetris.piece_y += 1
+                        if not tetris.valid_space():
+                            tetris.piece_y -= 1
+                    if event.key == pygame.K_UP:
+                        tetris.rotate_piece()
+                        if not tetris.valid_space():
+                            tetris.rotate_piece()
+                            tetris.rotate_piece()
+                            tetris.rotate_piece()
+
+if __name__ == "__main__":
+    main()
+```
